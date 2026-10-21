@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Почтовый архив — прототип</title>
+<style>
+:root{font-family:Segoe UI,Arial,sans-serif;color:#192d42;background:#f1f4f7}*{box-sizing:border-box}
+body{margin:0}header{background:#142d47;color:white;padding:24px 5%;display:flex;align-items:center;justify-content:space-between}
+h1{font-size:24px;margin:0}header p{color:#c5d6e8;margin:7px 0 0}nav{display:flex;gap:10px}
+button,input,select{font:inherit}button{border:0;border-radius:7px;padding:11px 16px;cursor:pointer;background:#2164a5;color:white}
+nav button{background:#294862}button.secondary{background:#e6edf4;color:#193c60}button:disabled{opacity:.5;cursor:wait}
+main{max-width:1100px;margin:32px auto;padding:0 24px}.toolbar{display:flex;gap:12px;align-items:center;justify-content:space-between;margin:20px 0}
+.card{background:white;border:1px solid #d9e2eb;border-radius:12px;padding:24px;box-shadow:0 4px 18px #172c4210}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:16px 10px;border-bottom:1px solid #e2e8ef}th{font-size:13px;color:#55687b}
+.status{border-radius:20px;padding:5px 10px;font-size:13px;white-space:nowrap}.ok{background:#e0f2e6;color:#215b37}.bad{background:#ffe7e5;color:#8d2c25}.wait{background:#fff1d0;color:#78510a}
+input,select{padding:12px;border:1px solid #acbac9;border-radius:6px;max-width:100%}label{display:block;margin:18px 0}label input{display:block;width:100%;margin-top:7px}
+.muted{color:#607185}.hidden{display:none}#notice{min-height:28px;margin:12px 0;color:#245d3e}
+#notice.error{color:#a32626}pre{white-space:pre-wrap;font:16px/1.7 Segoe UI,sans-serif}
+.detailrow{margin:14px 0}.demo{font-size:13px;color:#61768a;margin-top:24px}
+@media(max-width:700px){header{display:block}nav{margin-top:18px;flex-wrap:wrap}.toolbar{display:block}table{font-size:13px}td,th{padding:9px 4px}}
+</style></head><body>
+<header><div><h1>Почтовый архив</h1><p>Письма и протоколы в одном месте</p></div><nav aria-label="Разделы"><button data-view="archive">Архив</button><button data-view="journal">Журнал</button><button data-view="settings">Настройки</button></nav></header>
+<main><div id="notice" role="status" aria-live="polite"></div>
+<section id="archive" class="view"><div class="toolbar"><h2>Входящие письма</h2><input id="search" type="search" placeholder="Поиск по теме или отправителю" aria-label="Поиск писем"></div>
+<div class="card"><table><thead><tr><th>ПИСЬМО</th><th>ДАТА</th><th>СОСТОЯНИЕ</th><th>ДЕЙСТВИЕ</th></tr></thead><tbody id="letters"></tbody></table></div></section>
+<section id="settings" class="view hidden"><h2>Настройки архива</h2><form id="settingsForm" class="card">
+<label>Сервер приёма<input id="host" value="mail.example.test" required></label>
+<label>Папка для сохранения<input id="folder" value="C:\MailArchive" required></label>
+<label><input id="enabled" type="checkbox" checked style="width:auto;display:inline"> Автоматически сохранять новые письма</label>
+<label><input id="simulate" type="checkbox" style="width:auto;display:inline"> Проверить сценарий ошибки доступа к папке</label>
+<button>Сохранить настройки</button></form></section>
+<section id="journal" class="view hidden"><h2>Журнал операций</h2><div class="card"><table><thead><tr><th>ВРЕМЯ</th><th>ОПЕРАЦИЯ</th><th>РЕЗУЛЬТАТ</th></tr></thead><tbody id="events"></tbody></table></div></section>
+<section id="detail" class="view hidden"><div class="toolbar"><h2 id="detailTitle">Письмо</h2><button class="secondary" data-view="archive">Назад</button></div><article id="detailBody" class="card"></article></section>
+<p class="demo">Учебный прототип. Все письма демонстрационные. Подключение к почте и запись в файловую систему не выполняются.</p>
+</main><script>
+const messages=[
+{id:1,subject:'Протокол учебного собрания',sender:'secretary@example.test',date:'20.10.2026',status:'Archived',body:'Повестка: распределение задач учебного проекта.\nРешение: подготовить макеты и проверить сценарии архивирования.'},
+{id:2,subject:'План лабораторных работ',sender:'teacher@example.test',date:'20.10.2026',status:'New',body:'Подготовить исходные тексты, отчёты и примеры для защиты.'},
+{id:3,subject:'Итоги обсуждения интерфейса',sender:'team@example.test',date:'19.10.2026',status:'Failed',body:'Добавить поиск по теме и повтор операции после ошибки.'}
+];
+const events=[{time:'10:15',name:'Архивирование письма №1',result:'Сохранено'},{time:'10:17',name:'Архивирование письма №3',result:'Ошибка доступа к папке'}];
+let busy=false;let current='archive';
+const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function show(view){current=view;document.querySelectorAll('.view').forEach(x=>x.classList.toggle('hidden',x.id!==view));render();}
+function notify(text,error=false){const el=document.querySelector('#notice');el.textContent=text;el.classList.toggle('error',error);}
+function render(){
+ const q=document.querySelector('#search').value.toLowerCase();
+ document.querySelector('#letters').innerHTML=messages.filter(m=>(m.subject+' '+m.sender).toLowerCase().includes(q)).map(m=>`<tr><td><button class="secondary" onclick="detail(${m.id})">${escape(m.subject)}</button><br><small>${escape(m.sender)}</small></td><td>${m.date}</td><td><span class="status ${m.status==='Archived'?'ok':m.status==='Failed'?'bad':'wait'}">${{Archived:'Сохранено',Failed:'Ошибка',New:'Новое'}[m.status]}</span></td><td><button onclick="archiveMail(${m.id})" ${busy?'disabled':''}>${m.status==='Failed'?'Повторить':m.status==='Archived'?'Карточка':'Сохранить'}</button></td></tr>`).join('')||'<tr><td colspan="4">Письма не найдены</td></tr>';
+ document.querySelector('#events').innerHTML=events.map(e=>`<tr><td>${escape(e.time)}</td><td>${escape(e.name)}</td><td>${escape(e.result)}</td></tr>`).join('');
+}
+function detail(id){const m=messages.find(x=>x.id===id);document.querySelector('#detailTitle').textContent=m.subject;document.querySelector('#detailBody').innerHTML=`<div class="detailrow">От: ${escape(m.sender)}</div><div class="detailrow">Дата: ${m.date}</div><pre>${escape(m.body)}</pre><div class="muted">Файл: message-${id}.txt</div>`;show('detail');}
+async function archiveMail(id){
+ const m=messages.find(x=>x.id===id);if(m.status==='Archived'){detail(id);return;}
+ if(busy)return;busy=true;notify('Сохранение письма…');render();
+ await new Promise(r=>setTimeout(r,500));
+ const failed=document.querySelector('#simulate').checked;m.status=failed?'Failed':'Archived';
+ events.unshift({time:new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}),name:'Архивирование письма №'+id,result:failed?'Ошибка доступа к папке':'Сохранено'});
+ busy=false;notify(failed?'Нет доступа к папке. Исправьте настройки и повторите операцию.':'Письмо сохранено в демонстрационный архив.',failed);if(failed)show('journal');else render();
+}
+document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>show(b.dataset.view));
+document.querySelector('#search').oninput=render;
+document.querySelector('#settingsForm').onsubmit=e=>{e.preventDefault();if(!document.querySelector('#host').value.trim()||!document.querySelector('#folder').value.trim()){notify('Укажите сервер и папку.',true);return;}notify('Настройки сохранены в текущем сеансе прототипа.');show('archive');};
+render();
+</script></body></html>
